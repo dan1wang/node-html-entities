@@ -1,16 +1,17 @@
+const fs = require('fs');
+
 const entities = require('./entities');
-const html4Entities = require('./html4-entities.json');
+const html4EntitiesList = require('./html4-entities.json');
 
-/*
-  Find HTML 4 entities that can be in upper case (entities whose
-  lower-case forms are unique)
-*/
+// *************************************************************
+// Find HTML 4 entities that can be in upper case (entities whose
+// lower-case forms are unique)
+// *************************************************************
 
-const html4EntitiesRC = []; // HTML 4 entities in regular case (e.g. AElig)
-const html4EntitiesUC = []; // HTML 4 entities that can be in upper case (e.g. quot)
+const html4Entities = []; // HTML 4 entities in regular case (e.g. AElig)
+const HTML4ENTITIES = []; // HTML 4 entities that can be in upper case (e.g. quot)
 
-const A =
-html4Entities
+html4EntitiesList
     .map( (el) => {
         return {encoded: el, lc: el.toLowerCase()}
     })
@@ -21,33 +22,33 @@ html4Entities
     })
     .forEach( (el, idx, array) => {
         const encoded = el.encoded
-        html4EntitiesRC.push(encoded);
+        html4Entities.push(encoded);
         //console.log(array[idx+1].lc);
         if (((idx < array.length-1) && (array[idx+1].lc === el.lc)) ||
             ((idx > 0)              && (array[idx-1].lc === el.lc))) {
             // case sensitive
         } else {
-            html4EntitiesUC.push(encoded);
+            HTML4ENTITIES.push(encoded);
         }
     });
 
 // Html4 entities sorted by length
-const html4EntitiesRCSorted = {};
-html4EntitiesRC.forEach( (el) => {
+const html4EntitiesSorted = {};
+html4Entities.forEach( (el) => {
     let len = el.length;
-    if (html4EntitiesRCSorted[len]) {
-        html4EntitiesRCSorted[len].push(el);
+    if (html4EntitiesSorted[len]) {
+        html4EntitiesSorted[len].push(el);
     } else {
-        html4EntitiesRCSorted[len] = [el];
+        html4EntitiesSorted[len] = [el];
     }
 });
-const html4EntitiesUCSorted = {};
-html4EntitiesUC.forEach( (el) => {
+const HTML4ENTITIESSorted = {};
+HTML4ENTITIES.forEach( (el) => {
     let len = el.length;
-    if (html4EntitiesUCSorted[len]) {
-        html4EntitiesUCSorted[len].push(el);
+    if (HTML4ENTITIESSorted[len]) {
+        HTML4ENTITIESSorted[len].push(el);
     } else {
-        html4EntitiesUCSorted[len] = [el];
+        HTML4ENTITIESSorted[len] = [el];
     }
 });
 
@@ -56,91 +57,122 @@ html4EntitiesUC.forEach( (el) => {
 // *************************************************************
 
 let html4EntitiesDecorder =
-`function(input, opts) {
+`module.exports = function(input, semiRequired, allowAllCap) {
     if (!input || !input.length) return '';
-    var semiRequired = false;
-    var caseSensitive = false;
-    if (opts) {
-        if (opts.hasOwnProperty('requireSemiColon'))
-            semiRequired = opts.requireSemiColon;
-        if (opts.hasOwnProperty('caseSensitive'))
-            caseSensitive = opts.caseSensitive;
-    }
+    semiRequired = ((semiRequired !== undefined) && (semiRequired.constructor == Boolean))?semiRequired:false;
+    allowAllCap = ((allowAllCap != undefined) && (allowAllCap.constructor == Boolean))?allowAllCap:true;
     var output = '';
     var subStr = '';
     var i = 0;
     var j = 0;
     var len = input.length;
     var trailingSemiColon;
+    var char;
     while (i < len) {
-      if (inputs.charAt(i) == '&') {
-          %%NamedEntityParserCode%%
-      }
+        char = input.charAt(i);
+        if (char == '&') {` +
+            `%%NamedEntityParserCode%%
+        }
+        i++;
+        output += char;
     }
+    return output;
 }`;
 
-//console.log(html4EntitiesRCSorted);
+// Generate named entity parser in reverse order of entity length
+// This is becuase, in the case where semicolon is optional,
+// "&piv" should be treated as "&piv;", not "&pi;v"
 
 let namedEntityParserCode = '';
-Object.keys(html4EntitiesRCSorted).sort().forEach((len) => {
-    len = parseInt(len);
-    const keys = [];
-    const values = [];
-    html4EntitiesRCSorted[len].forEach((el) => {
-        keys.push('"' + el + '"');
-        values.push('"' + entities['&' + el + ';'] + '"');
+let innerParserCode = '';
+Object.keys(html4EntitiesSorted).sort().reverse().forEach((entityLen) => {
+    entityLen = parseInt(entityLen);
+
+    const named = [];
+    const decoded = [];
+    html4EntitiesSorted[entityLen].forEach((el) => {
+        named.push('"' + el + '"');
+        decoded.push('"' + entities['&' + el + ';'] + '"');
     });
-    let matchCode = '';
-    if (keys.length > 2) {
-        matchCode =
-             `j = [${keys.join(',')}].indexOf(input.substring(i+1,i+${len+1}));
-              if (j >= 0) {
-                  i += trailingSemiColon?${len+2}:${len+1};
-                  output += [${values.join(',')}][j];
-                  break;
-              }`;
-    } else if (keys.length == 2) {
-        matchCode =
-             `subStr = input.substring(i+1,i+${len+1});
-              if (subStr == ${keys[0]}) {
-                  i += trailingSemiColon?${len+2}:${len+1};
-                  output += ${values[0]};
-              } else if (subStr == ${keys[1]}) {
-                  i += trailingSemiColon?${len+2}:${len+1};
-                  output += ${values[1]};
-              }`;
+    if (named.length > 2) {
+        innerParserCode =
+                   `j = [${named.join(',')}].indexOf(subStr);
+                    if (j >= 0) {
+                        i += trailingSemiColon?${entityLen+2}:${entityLen+1};
+                        output += [${decoded.join(',')}][j];
+                        continue;
+                    }`;
+    } else if (named.length == 2) {
+        innerParserCode =
+                   `if (subStr == ${named[0]}) {
+                        i += trailingSemiColon?${entityLen+2}:${entityLen+1};
+                        output += ${decoded[0]};
+                        continue;
+                    } else if (subStr == ${named[1]}) {
+                        i += trailingSemiColon?${entityLen+2}:${entityLen+1};
+                        output += ${decoded[1]};
+                        continue;
+                    }`;
     } else {
-        matchCode =
-             `subStr = input.substring(i+1,i+${len+1});
-              if (subStr == ${keys[0]}) {
-                  i += trailingSemiColon?${len+2}:${len+1};
-                  output += ${values[0]};
-              }`;
+        innerParserCode =
+                   `if (subStr == ${named[0]}) {
+                        i += trailingSemiColon?${entityLen+2}:${entityLen+1};
+                        output += ${decoded[0]};
+                        continue;
+                    }`;
     }
 
-    if (namedEntityParserCode === '') {
-        namedEntityParserCode =
-          `if (i + ${len+1} >= len) { output += '&'; break; }`
-    } else {
-        namedEntityParserCode +=`
-          if ((trailingSemiColon) || (i + ${len+1} >= len)) { output += '&'; break; }`;
+    if (HTML4ENTITIESSorted[entityLen]) {
+        const NAMED = [];
+        const DECODED = [];
+        HTML4ENTITIESSorted[entityLen].forEach((el) => {
+            NAMED.push('"' + el.toUpperCase() + '"');
+            DECODED.push('"' + entities['&' + el + ';'] + '"');
+        });
+        if (NAMED.length > 2) {
+            innerParserCode += `
+                    if (allowAllCap) {
+                        j = [${NAMED.join(',')}].indexOf(subStr);
+                        if (j >= 0) {
+                            i += trailingSemiColon?${entityLen+2}:${entityLen+1};
+                            output += [${DECODED.join(',')}][j];
+                            continue;
+                        }
+                    }`;
+        } else if (NAMED.length == 2) {
+            innerParserCode +=`
+                    if (allowAllCap) {
+                        if (subStr == ${NAMED[0]}) {
+                            i += trailingSemiColon?${entityLen+2}:${entityLen+1};
+                            output += ${decoded[0]};
+                            continue;
+                        } else if (subStr == ${NAMED[1]}) {
+                            i += trailingSemiColon?${entityLen+2}:${entityLen+1};
+                            output += ${DECODED[1]};
+                            continue;
+                        }
+                    }`;
+        } else {
+            innerParserCode += `
+                    if (allowAllCap && (subStr == ${NAMED[0]})) {
+                        i += trailingSemiColon?${entityLen+2}:${entityLen+1};
+                        output += ${DECODED[0]};
+                        continue;
+                    }`;
+        }
     }
+
+
     namedEntityParserCode +=`
-          trailingSemiColon = input.charAt(i+${len+1}) == ';';
-          if (!semiRequired || trailingSemiColon) {
-              ${matchCode}
-          }`;
+            if (i + ${entityLen} < len) {
+                trailingSemiColon = input.charAt(i+${entityLen+1}) == ';';
+                if (!semiRequired || trailingSemiColon) {
+                    subStr = input.substring(i+1,i+${entityLen+1});
+                    ${innerParserCode}
+                }
+            }`;
 })
 
 html4EntitiesDecorder= html4EntitiesDecorder.replace('%%NamedEntityParserCode%%', namedEntityParserCode);
-console.log(html4EntitiesDecorder);
 
-/*
- HTML 4 strict
-   - requires ';'
-   - case sensitive
-
- HTML 5 strict
-   - requires ';'
-   - case sensitive
-*/
+fs.writeFileSync('decoder.js', html4EntitiesDecorder);
