@@ -31,7 +31,7 @@ const buildDecoder = function(entities, ENTITIES) {
 
     let namedEntityParserCode = '';
     let innerParserCode = '';
-    Object.keys(entities).sort().reverse().forEach((entityLen) => {
+    Object.keys(entities).sort( (a,b) => parseInt(a) - parseInt(b) ).reverse().forEach((entityLen) => {
         entityLen = parseInt(entityLen);
         const named = entities[entityLen].named;
         const decoded = entities[entityLen].decoded;
@@ -117,7 +117,7 @@ const { HTML4ENTITIESSorted, html4EntitiesSorted, html5EntitiesSorted } =
     require('./entities-list');
 
 const decoderSource =
-    '/* THIS IS GENERATED SOURCE. DO NOT EDIT */\n' +
+    '/* THIS IS GENERATED SOURCE. DO NOT EDIT */\n\n' +
     'var decodeHTML4Entities = ' +
     buildDecoder(html4EntitiesSorted, HTML4ENTITIESSorted) + '\n\n' +
     'var decodeHTML5Entities = ' +
