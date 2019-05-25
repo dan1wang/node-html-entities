@@ -12,7 +12,7 @@
  */
 
 // the following is exact copy of https://www.w3.org/TR/html5/entities.json
-const e = {
+const entities = {
     "&Aacute;": { "codepoints": [193], "characters": "\u00C1" },
     "&Aacute": { "codepoints": [193], "characters": "\u00C1" },
     "&aacute;": { "codepoints": [225], "characters": "\u00E1" },
@@ -2248,29 +2248,27 @@ const e = {
 
 function toEscapedStr(charCode) {
     const hex = charCode.toString(16).toUpperCase();
-    if (charCode <= 127) {
+    if ((charCode >= 32) && (charCode <= 127)) {
         if (charCode == 39) return "'";
         if (charCode == 34) return '\\"';
         if (charCode == 92) return '\\\\';
         return String.fromCharCode(charCode);
     }
-    // if (charCode <= 0x0F)   return '\\x0' + hex;
+    if (charCode <= 0x0F)   return '\\x0' + hex;
     if (charCode <= 0xFF)   return '\\x'  + hex;
-
     if (charCode <= 0x0FFF) return '\\u0' + hex;
     if (charCode <= 0xFFFF) return '\\u' +  hex;
 
     // https://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
     const H = Math.floor((charCode - 0x10000) / 0x400) + 0xD800
     const L = (charCode - 0x10000) % 0x400 + 0xDC00
-    const pair = toEscapedStr(H) + toEscapedStr(L);
-    return pair;
+    return toEscapedStr(H) + toEscapedStr(L);
 }
 
-const entities = {};
-Object.keys(e).forEach( (k) => {
-    entities[k] =
-      e[k].codepoints.reduce( (res, el) => { return res + toEscapedStr(el)}, '')
+const entitiesMap = {};
+Object.keys(entities).forEach( (k) => {
+    entitiesMap[k] =
+      entities[k].codepoints.reduce( (res, el) => { return res + toEscapedStr(el)}, '')
 })
 
-module.exports = entities;
+module.exports = entitiesMap;
