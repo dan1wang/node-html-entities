@@ -1,14 +1,13 @@
 const fs = require('fs');
 
-const buildDecoder = function(entities, ENTITIES) {
+const buildDecoderOptionalSemiColon = function(entities, ENTITIES) {
 
     let decoderSource  =
-`function(input, semiRequired, allowAllCap) {
+`function(input, allowAllCap) {
     if (!input || !input.length) return '';
     var segments = input.split('&');
     if (segments.length == 1) return input;
 
-    semiRequired = ((semiRequired !== undefined) && (semiRequired.constructor == Boolean))?semiRequired:false;
     allowAllCap = ((allowAllCap != undefined) && (allowAllCap.constructor == Boolean))?allowAllCap:true;
     var output = '';
     var candidateStr = '';
@@ -16,8 +15,8 @@ const buildDecoder = function(entities, ENTITIES) {
     var j = 0;
     var trailingSemiColon;
     for (i=1; i<segments.length; i++) {
-        var segment = segments[i];
-        %%NamedEntityParserCode%%
+        var segment = segments[i];` +
+       `%%NamedEntityParserCode%%
         output += '&' + segment;
     }
     return output;
@@ -34,31 +33,31 @@ const buildDecoder = function(entities, ENTITIES) {
         const named = entities[entityLen].named;
         const decoded = entities[entityLen].decoded;
         if (named.length > 2) {
-            innerParserCode =
-               `j = [${named.join(',')}].indexOf(candidateStr);
-                if (j >= 0) {
-                    output += [${decoded.join(',')}][j]
-                              + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
-                    continue;
-                }`;
+            innerParserCode =`
+            j = [${named.join(',')}].indexOf(candidateStr);
+            if (j >= 0) {
+                output += [${decoded.join(',')}][j]
+                          + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
+                continue;
+            }`;
         } else if (named.length == 2) {
-            innerParserCode =
-               `if (candidateStr == ${named[0]}) {
-                    output += ${decoded[0]}
-                              + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
-                    continue;
-                } else if (candidateStr == ${named[1]}) {
-                    output += ${decoded[1]}
-                              + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
-                    continue;
-                }`;
+            innerParserCode =`
+            if (candidateStr == ${named[0]}) {
+                output += ${decoded[0]}
+                          + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
+                continue;
+            } else if (candidateStr == ${named[1]}) {
+                output += ${decoded[1]}
+                          + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
+                continue;
+            }`;
         } else {
-            innerParserCode =
-               `if (candidateStr == ${named[0]}) {
-                    output += ${decoded[0]}
-                              + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
-                    continue;
-                }`;
+            innerParserCode =`
+            if (candidateStr == ${named[0]}) {
+                output += ${decoded[0]}
+                          + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
+                continue;
+            }`;
         }
 
         if (ENTITIES[entityLen]) {
@@ -66,45 +65,43 @@ const buildDecoder = function(entities, ENTITIES) {
             const DECODED = ENTITIES[entityLen].decoded;
             if (NAMED.length > 2) {
                 innerParserCode += `
-                if (allowAllCap) {
-                    j = [${NAMED.join(',')}].indexOf(candidateStr);
-                    if (j >= 0) {
-                        output += [${DECODED.join(',')}][j]
-                                  + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
-                        continue;
-                    }
-                }`;
+            if (allowAllCap) {
+                j = [${NAMED.join(',')}].indexOf(candidateStr);
+                if (j >= 0) {
+                    output += [${DECODED.join(',')}][j]
+                              + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
+                    continue;
+                }
+            }`;
             } else if (NAMED.length == 2) {
                 innerParserCode +=`
-                if (allowAllCap) {
-                    if (candidateStr == ${NAMED[0]}) {
-                         output += ${DECODED[0]}
-                                   + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
-                         continue;
-                    } else if (candidateStr == ${NAMED[1]}) {
-                         output += ${DECODED[0]}
-                                   + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
-                         continue;
-                    }
-                }`;
+            if (allowAllCap) {
+                if (candidateStr == ${NAMED[0]}) {
+                     output += ${DECODED[0]}
+                               + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
+                     continue;
+                } else if (candidateStr == ${NAMED[1]}) {
+                     output += ${DECODED[0]}
+                               + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
+                     continue;
+                }
+            }`;
             } else {
                 innerParserCode += `
-                if (allowAllCap && (candidateStr == ${NAMED[0]})) {
-                    output += ${DECODED[0]}
-                              + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
-                    continue;
-                }`;
+            if (allowAllCap && (candidateStr == ${NAMED[0]})) {
+                output += ${DECODED[0]}
+                          + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
+                continue;
+            }`;
             }
         }
 
 
-        namedEntityParserCode +=
-        `if (segment.length >= ${entityLen}) {
+        namedEntityParserCode +=`
+        if (segment.length >= ${entityLen}) {
             trailingSemiColon = segment.charAt(${entityLen}) == ';';
-            if (!semiRequired || trailingSemiColon) {
-                candidateStr = segment.substring(0,${entityLen});
-                ${innerParserCode}
-            }
+            candidateStr = segment.substring(0,${entityLen});` +
+           `${innerParserCode}
         }`;
     })
 
@@ -190,9 +187,9 @@ const { HTML4ENTITIESSorted, html4EntitiesSorted, html5EntitiesSorted } =
 const decoderSource =
     '/* THIS IS GENERATED SOURCE. DO NOT EDIT */\n\n' +
     'var decodeHTML4Entities = ' +
-    buildDecoder(html4EntitiesSorted, HTML4ENTITIESSorted) + '\n\n' +
+    buildDecoderOptionalSemiColon(html4EntitiesSorted, HTML4ENTITIESSorted) + '\n\n' +
     'var decodeHTML5Entities = ' +
-    buildDecoder(html5EntitiesSorted, HTML4ENTITIESSorted) + '\n\n' +
+    buildDecoderOptionalSemiColon(html5EntitiesSorted, HTML4ENTITIESSorted) + '\n\n' +
     'var decodeHTML4EntitiesStrict = ' +
     buildStrictDecoder(html4EntitiesSorted, HTML4ENTITIESSorted) + '\n\n' +
     'var decodeHTML5EntitiesStrict = ' +

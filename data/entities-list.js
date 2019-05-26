@@ -46,7 +46,7 @@ html4Entities.forEach( (el) => {
 
 const HTML4ENTITIESSorted = {};
 HTML4ENTITIES.forEach( (el) => {
-    const named = '"' + el + '"';
+    const named = '"' + el.toUpperCase() + '"';
     const decoded = '"' + entitiesMap['&' + el + ';'] + '"';
     let len = el.length;
     if (HTML4ENTITIESSorted[len]) {
