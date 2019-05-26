@@ -5,22 +5,20 @@ const buildDecoder = function(entities, ENTITIES) {
     let decoderSource  =
 `function(input, semiRequired, allowAllCap) {
     if (!input || !input.length) return '';
+    var segments = input.split('&');
+    if (segments.length == 1) return input;
+
     semiRequired = ((semiRequired !== undefined) && (semiRequired.constructor == Boolean))?semiRequired:false;
     allowAllCap = ((allowAllCap != undefined) && (allowAllCap.constructor == Boolean))?allowAllCap:true;
     var output = '';
     var subStr = '';
     var i = 0;
     var j = 0;
-    var len = input.length;
     var trailingSemiColon;
-    var char;
-    while (i < len) {
-        char = input.charAt(i);
-        if (char == '&') {` +
-            `%%NamedEntityParserCode%%
-        }
-        i++;
-        output += char;
+    for (i=1; i<segments.length; i++) {
+        var segment = segments[i];
+        %%NamedEntityParserCode%%
+        output += segment;
     }
     return output;
 }`;
@@ -37,30 +35,31 @@ const buildDecoder = function(entities, ENTITIES) {
         const decoded = entities[entityLen].decoded;
         if (named.length > 2) {
             innerParserCode =
-                   `j = [${named.join(',')}].indexOf(subStr);
-                    if (j >= 0) {
-                        i += trailingSemiColon?${entityLen+2}:${entityLen+1};
-                        output += [${decoded.join(',')}][j];
-                        continue;
-                    }`;
+               `j = [${named.join(',')}].indexOf(subStr);
+                if (j >= 0) {
+                    output += [${decoded.join(',')}][j]
+                              + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
+                    continue;
+                }`;
         } else if (named.length == 2) {
             innerParserCode =
-                   `if (subStr == ${named[0]}) {
-                        i += trailingSemiColon?${entityLen+2}:${entityLen+1};
-                        output += ${decoded[0]};
-                        continue;
-                    } else if (subStr == ${named[1]}) {
-                        i += trailingSemiColon?${entityLen+2}:${entityLen+1};
-                        output += ${decoded[1]};
-                        continue;
-                    }`;
+               `if (subStr == ${named[0]}) {
+                    output += ${decoded[0]}
+                              + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
+                    continue;
+                } else if (subStr == ${named[1]}) {
+                    output += ${decoded[1]}
+                              + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
+                    continue;
+                }`;
         } else {
             innerParserCode =
-                   `if (subStr == ${named[0]}) {
-                        i += trailingSemiColon?${entityLen+2}:${entityLen+1};
-                        output += ${decoded[0]};
-                        continue;
-                    }`;
+               `if (subStr == ${named[0]}) {
+                    i += trailingSemiColon?${entityLen+2}:${entityLen+1};
+                    output += ${decoded[0]}
+                              + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
+                    continue;
+                }`;
         }
 
         if (ENTITIES[entityLen]) {
@@ -68,46 +67,48 @@ const buildDecoder = function(entities, ENTITIES) {
             const DECODED = ENTITIES[entityLen].decoded;
             if (NAMED.length > 2) {
                 innerParserCode += `
-                    if (allowAllCap) {
-                        j = [${NAMED.join(',')}].indexOf(subStr);
-                        if (j >= 0) {
-                            i += trailingSemiColon?${entityLen+2}:${entityLen+1};
-                            output += [${DECODED.join(',')}][j];
-                            continue;
-                        }
-                    }`;
+                if (allowAllCap) {
+                    j = [${NAMED.join(',')}].indexOf(subStr);
+                    if (j >= 0) {
+                        output += [${DECODED.join(',')}][j]
+                                  + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
+                        continue;
+                    }
+                }`;
             } else if (NAMED.length == 2) {
                 innerParserCode +=`
-                    if (allowAllCap) {
-                        if (subStr == ${NAMED[0]}) {
-                            i += trailingSemiColon?${entityLen+2}:${entityLen+1};
-                            output += ${decoded[0]};
-                            continue;
-                        } else if (subStr == ${NAMED[1]}) {
-                            i += trailingSemiColon?${entityLen+2}:${entityLen+1};
-                            output += ${DECODED[1]};
-                            continue;
-                        }
-                    }`;
+                if (allowAllCap) {
+                    if (subStr == ${NAMED[0]}) {
+                         output += ${DECODED[0]}
+                                   + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
+                         continue;
+                    } else if (subStr == ${NAMED[1]}) {
+                         i += trailingSemiColon?${entityLen+1}:${entityLen};
+                         output += ${DECODED[0]}
+                                   + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
+                         continue;
+                    }
+                }`;
             } else {
                 innerParserCode += `
-                    if (allowAllCap && (subStr == ${NAMED[0]})) {
-                        i += trailingSemiColon?${entityLen+2}:${entityLen+1};
-                        output += ${DECODED[0]};
-                        continue;
-                    }`;
+                if (allowAllCap && (subStr == ${NAMED[0]})) {
+                    i += trailingSemiColon?${entityLen+1}:${entityLen};
+                    output += ${DECODED[0]}
+                              + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen}, segment.length - 1);
+                    continue;
+                }`;
             }
         }
 
 
-        namedEntityParserCode +=`
-            if (i + ${entityLen} < len) {
-                trailingSemiColon = input.charAt(i+${entityLen+1}) == ';';
-                if (!semiRequired || trailingSemiColon) {
-                    subStr = input.substring(i+1,i+${entityLen+1});
-                    ${innerParserCode}
-                }
-            }`;
+        namedEntityParserCode +=
+        `if (segment.length > ${entityLen}) {
+            trailingSemiColon = input.charAt(${entityLen+1}) == ';';
+            if (!semiRequired || trailingSemiColon) {
+                subStr = input.substring(0,${entityLen});
+                ${innerParserCode}
+            }
+        }`;
     })
 
     return decoderSource.replace('%%NamedEntityParserCode%%', namedEntityParserCode);
