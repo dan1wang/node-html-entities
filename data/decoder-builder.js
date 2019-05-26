@@ -18,8 +18,9 @@ const buildDecoder = function(entities, ENTITIES) {
     for (i=1; i<segments.length; i++) {
         var segment = segments[i];
         %%NamedEntityParserCode%%
-        output += segment;
+        output += '&' + segment;
     }
+    console.log(output);
     return output;
 }`;
 
@@ -105,7 +106,7 @@ const buildDecoder = function(entities, ENTITIES) {
         `if (segment.length > ${entityLen}) {
             trailingSemiColon = input.charAt(${entityLen+1}) == ';';
             if (!semiRequired || trailingSemiColon) {
-                subStr = input.substring(0,${entityLen});
+                subStr = input.substring(0,${entityLen-1});
                 ${innerParserCode}
             }
         }`;
