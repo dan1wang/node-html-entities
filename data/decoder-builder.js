@@ -14,13 +14,38 @@ function buildDecoder(entities) {
     var j = 0;
     for (i=1; i<segments.length; i++) {
         var seg = segments[i];
-        if (seg.charAt(1) == '#') {
-            var code = seg.charAt(2) === 'x' ?
-                parseInt(seg.substr(2).toLowerCase(), 16) :
-                parseInt(seg.substr(1));
-            if (!(isNaN(code) || code < -32768 || code > 65535)) {
-                chr = String.fromCharCode(code);
+        if (seg.charAt(0) == '#') {
+            var cc = seg.charCodeAt(1);
+            var code = 0;
+            i = 1;
+            if ((cc === ${'x'.charCodeAt(0)}) || (cc === ${'X'.charCodeAt(0)})) {
+                do {
+                    cc = seg.charCodeAt(++i);
+                    if ((cc > ${'0'.charCodeAt(0)-1}) && (cc < ${'9'.charCodeAt(0)+1})) {
+                        code = code * 16 + cc - ${'0'.charCodeAt(0)};
+                    } else if ((cc > ${'a'.charCodeAt(0)-1}) && (cc < ${'f'.charCodeAt(0)+1})) {
+                        code = code * 16 + cc - ${'a'.charCodeAt(0) + 10};
+                    } else if ((cc > ${'A'.charCodeAt(0)-1}) && (cc < ${'F'.charCodeAt(0)+1})) {
+                        code = code * 16 + cc - ${'A'.charCodeAt(0) + 10};
+                    } else {
+                        break;
+                    }
+                } while (1)
+            } else {
+                while (1) {
+                    if ((cc > ${'0'.charCodeAt(0)-1}) && (cc < ${'9'.charCodeAt(0)+1})) {
+                        code = code * 16 + cc - ${'0'.charCodeAt(0)};
+                        cc = seg.charCodeAt(++i);
+                    } else {
+                        break;
+                    }
+                }
             }
+            output += String.fromCharCode(code) + seg.substring(i);
+            continue;
+            // if (!(isNaN(code) || code < -32768 || code > 65535)) {
+            //     chr = String.fromCharCode(code);
+            // }
         } else {
             var candidateLen = seg.indexOf(';');
             var candidateStr = seg.substring(0, candidateLen)
