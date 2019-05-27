@@ -26,7 +26,7 @@ benchmark('Encode test', {
 
 });
 
-var textToDecode = '&#60;This&#62; is a test encode benchmark. Should contain &lt;&gt;&amp;&apos; and &quot;. And some unicode symbols: &copy;, &#8710;, &mdash;. Good luck.'
+var textToDecode = '&#60;This&#62; is a test encode benchmark. Should contain &lt;&gt;&amp;&apos; and &quot. And some unicode symbols: &copy;, &#8710;, &mdash;. Good luck.'
 
 var newDecoder = require('../lib/named-entities-decoder')
 
@@ -43,12 +43,17 @@ benchmark('Decode test', {
     'entities.decodeXML': function () { entities.decodeXML(textToDecode); },
     'entities.decodeHTML4': function () { entities.decodeHTML4(textToDecode); },
     'entities.decodeHTML5': function () { entities.decodeHTML5(textToDecode); },
-    'newDecoder.decodeHTML4Entities': function () { newDecoder.decodeHTML4Entities(textToDecode, true, false); },
-    'newDecoder.decodeHTML5Entities': function () { newDecoder.decodeHTML5Entities(textToDecode, true, false); },
-    'newDecoder.decodeHTML4EntitiesStrict': function () { newDecoder.decodeHTML4EntitiesStrict(textToDecode); },
-    'newDecoder.decodeHTML5EntitiesStrict': function () { newDecoder.decodeHTML5EntitiesStrict(textToDecode); }
+    'newDecoder.decodeHTML4Entities': function () { newDecoder.decodeHTML4Entities(textToDecode); },
+    'newDecoder.decodeHTML5Entities': function () { newDecoder.decodeHTML5Entities(textToDecode); },
+    'newDecoder.decodeHTML4EntitiesStrict': function () { newDecoder.decodeHTML4Entities(textToDecode, true); },
+    'newDecoder.decodeHTML5EntitiesStrict': function () { newDecoder.decodeHTML5Entities(textToDecode, true); }
 });
-
+/*
+console.log(newDecoder.decodeHTML4Entities(textToDecode, true));
+console.log(newDecoder.decodeHTML5Entities(textToDecode, true));
+console.log(newDecoder.decodeHTML4Entities(textToDecode, false));
+console.log(newDecoder.decodeHTML5Entities(textToDecode, false));
+*/
 var littleTextToDecode = '&lt;';
 
 benchmark('Decode little text test', {
