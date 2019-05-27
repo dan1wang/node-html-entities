@@ -2373,7 +2373,7 @@ Object.keys(entitiesDict).forEach( (el) => {
     ) {
         const named = '"' + el.substring(1, el.length - 1) + '"';
         const decoded = '"' + entitiesDict[el] + '"';
-        let len = el.length;
+        let len = el.length - 2;
         if (html5EntitiesSorted[len]) {
             html5EntitiesSorted[len].named.push(named);
             html5EntitiesSorted[len].decoded.push(decoded);
