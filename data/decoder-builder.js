@@ -1,199 +1,144 @@
 const fs = require('fs');
 
-const buildDecoderOptionalSemiColon = function(entities, ENTITIES) {
+const { legacyEntitiesSorted, html4EntitiesSorted, html5EntitiesSorted } =
+    require('./entities-dict');
 
+function buildDecoder(entities) {
     let decoderSource  =
-`function(input, allowAllCap) {
+`function(input, strict) {
     if (!input || !input.length) return '';
     var segments = input.split('&');
     if (segments.length == 1) return input;
-
-    allowAllCap = ((allowAllCap != undefined) && (allowAllCap.constructor == Boolean))?allowAllCap:true;
     var output = '';
-    var candidateStr = '';
     var i = 0;
     var j = 0;
-    var trailingSemiColon;
     for (i=1; i<segments.length; i++) {
-        var segment = segments[i];` +
-       `%%NamedEntityParserCode%%
-        output += '&' + segment;
+        var seg = segments[i];
+        if (seg.charAt(1) == '#') {
+            // do something
+        } else {
+            var candidateStr = seg.substring(0, seg.indexOf(';'))
+            %%NamedEntityParserCodeStrict%%
+            if (strict != true) {
+                if (candidateStr == 'AMP') {
+                    output += '&' + seg.substring(4); continue;
+                } else if (candidateStr == 'GT') {
+                    output += '>' + seg.substring(3); continue;
+                } else if (candidateStr == 'LT') {
+                    output += '<' + seg.substring(3); continue;
+                } else if (candidateStr == 'QUOT') {
+                    output += '"' + seg.substring(5); continue;
+                }` +
+               `%%NamedEntityParserCodeQuirk%%
+            }
+        }
+        output += '&' + seg;
     }
     return output;
 }`;
 
-    // Generate named entity parser in reverse order of entity length
-    // This is becuase, in the case where semicolon is optional,
-    // "&piv" should be treated as "&piv;", not "&pi;v"
-
-    let namedEntityParserCode = '';
-    let innerParserCode = '';
-    Object.keys(entities).sort( (a,b) => parseInt(a) - parseInt(b) ).reverse().forEach((entityLen) => {
+    // Generate strict named entity parser
+    let namedEntityParserCodeStrict = '';
+    Object.keys(entities).sort( (a,b) => parseInt(a) - parseInt(b) ).forEach((entityLen) => {
+        let innerParserCode = '';
         entityLen = parseInt(entityLen);
         const named = entities[entityLen].named;
         const decoded = entities[entityLen].decoded;
         if (named.length > 2) {
-            innerParserCode =`
-            j = [${named.join(',')}].indexOf(candidateStr);
-            if (j >= 0) {
-                output += [${decoded.join(',')}][j]
-                          + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
-                continue;
-            }`;
-        } else if (named.length == 2) {
-            innerParserCode =`
-            if (candidateStr == ${named[0]}) {
-                output += ${decoded[0]}
-                          + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
-                continue;
-            } else if (candidateStr == ${named[1]}) {
-                output += ${decoded[1]}
-                          + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
-                continue;
-            }`;
-        } else {
-            innerParserCode =`
-            if (candidateStr == ${named[0]}) {
-                output += ${decoded[0]}
-                          + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
-                continue;
-            }`;
-        }
-
-        if (ENTITIES[entityLen]) {
-            const NAMED = ENTITIES[entityLen].named;
-            const DECODED = ENTITIES[entityLen].decoded;
-            if (NAMED.length > 2) {
-                innerParserCode += `
-            if (allowAllCap) {
-                j = [${NAMED.join(',')}].indexOf(candidateStr);
+            innerParserCode =
+               `j = [${named.join(',')}].indexOf(candidateStr);
                 if (j >= 0) {
-                    output += [${DECODED.join(',')}][j]
-                              + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
+                    output += [${decoded.join(',')}][j]
+                              + seg.substring(${entityLen+1});
                     continue;
-                }
-            }`;
-            } else if (NAMED.length == 2) {
-                innerParserCode +=`
-            if (allowAllCap) {
-                if (candidateStr == ${NAMED[0]}) {
-                     output += ${DECODED[0]}
-                               + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
-                     continue;
-                } else if (candidateStr == ${NAMED[1]}) {
-                     output += ${DECODED[0]}
-                               + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
-                     continue;
-                }
-            }`;
-            } else {
-                innerParserCode += `
-            if (allowAllCap && (candidateStr == ${NAMED[0]})) {
-                output += ${DECODED[0]}
-                          + segment.substring(trailingSemiColon?${entityLen+1}:${entityLen});
-                continue;
-            }`;
-            }
+                }`;
+        } else if (named.length == 2) {
+            innerParserCode =
+               `if (candidateStr == ${named[0]}) {
+                    output += ${decoded[0]} + seg.substring(${entityLen+1});
+                    continue;
+                } else if (candidateStr == ${named[1]}) {
+                    output += ${decoded[1]} + seg.substring(${entityLen+1});
+                    continue;
+                }`;
+        } else {
+            innerParserCode =
+               `if (candidateStr == ${named[0]}) {
+                    output += ${decoded[0]} + seg.substring(${entityLen+1});
+                    continue;
+                }`;
         }
 
-
-        namedEntityParserCode +=`
-        if (segment.length >= ${entityLen}) {
-            trailingSemiColon = segment.charAt(${entityLen}) == ';';
-            candidateStr = segment.substring(0,${entityLen});` +
-           `${innerParserCode}
-        }`;
+        if (namedEntityParserCodeStrict == '') {
+            namedEntityParserCodeStrict =
+           `if (candidateStr.length == ${entityLen}) {
+                ${innerParserCode}
+            }`
+        } else {
+            namedEntityParserCodeStrict +=
+           ` else if (candidateStr.length == ${entityLen}) {
+                ${innerParserCode}
+            }`
+        }
     })
 
-    return decoderSource.replace('%%NamedEntityParserCode%%', namedEntityParserCode);
-}
+    // Generate quirky named entity parser
+    let namedEntityParserCodeQuirk = '';
 
-const buildStrictDecoder = function(entities) {
-
-    let decoderSource  =
-`function(input) {
-    if (!input || !input.length) return '';
-    var output = '';
-    var candidateStr = '';
-    var i = 0;
-    var j = 0;
-    var len = input.length;
-    var char;
-    while (i < len) {
-        char = input.charAt(i);
-        if (char == '&') {` +
-            `%%NamedEntityParserCode%%
-        }
-        i++;
-        output += char;
+    function indent4(codeBlock) {
+        return codeBlock.split('\n').map( (line) => '    ' + line ).join('\n');
     }
-    return output;
-}`;
-
-    // Generate named entity parser in reverse order of entity length
-    // This is becuase, in the case where semicolon is optional,
-    // "&piv" should be treated as "&piv;", not "&pi;v"
-
-    let namedEntityParserCode = '';
-    let innerParserCode = '';
-    Object.keys(entities).sort( (a,b) => parseInt(a) - parseInt(b) ).forEach((entityLen) => {
+    Object.keys(legacyEntitiesSorted).sort( (a,b) => parseInt(a) - parseInt(b) ).reverse().forEach((entityLen) => {
+        let innerParserCode = '';
         entityLen = parseInt(entityLen);
-        const named = entities[entityLen].named;
-        const decoded = entities[entityLen].decoded;
+        const named = legacyEntitiesSorted[entityLen].named;
+        const decoded = legacyEntitiesSorted[entityLen].decoded;
         if (named.length > 2) {
             innerParserCode =
                    `j = [${named.join(',')}].indexOf(candidateStr);
                     if (j >= 0) {
-                        i += ${entityLen+2};
-                        output += [${decoded.join(',')}][j];
+                        output += [${decoded.join(',')}][j]
+                                  + seg.substring(${entityLen});
                         continue;
                     }`;
         } else if (named.length == 2) {
             innerParserCode =
                    `if (candidateStr == ${named[0]}) {
-                        i += ${entityLen+2};
-                        output += ${decoded[0]};
+                        output += ${decoded[0]} + seg.substring(${entityLen});
                         continue;
                     } else if (candidateStr == ${named[1]}) {
-                        i += ${entityLen+2};
-                        output += ${decoded[1]};
+                        output += ${decoded[1]} + seg.substring(${entityLen});
                         continue;
                     }`;
         } else {
             innerParserCode =
                    `if (candidateStr == ${named[0]}) {
-                        i += ${entityLen+2};
-                        output += ${decoded[0]};
+                        output += ${decoded[0]} + seg.substring(${entityLen});
                         continue;
                     }`;
         }
 
-        namedEntityParserCode +=
-            ((!namedEntityParserCode)?'\n            ':' else ') +
-            `if (i + ${entityLen+1} < len) {
-                if (input.charAt(i+${entityLen+1}) == ';') {
-                    candidateStr = input.substring(i+1,i+${entityLen+1});
-                    ${innerParserCode}
-                }
-            }`;
+        namedEntityParserCodeQuirk = `
+                if (seg.length >= ${entityLen}) {
+                    candidateStr = seg.substring(0, ${entityLen});
+                    ${innerParserCode}` +
+                    (
+                        namedEntityParserCodeQuirk !== ''
+                            ? (indent4(namedEntityParserCodeQuirk) + '\n')
+                            : ''
+                    ) + `
+                }`;
     })
 
-    return decoderSource.replace('%%NamedEntityParserCode%%', namedEntityParserCode);
+    decoderSource =  decoderSource.replace('%%NamedEntityParserCodeStrict%%', namedEntityParserCodeStrict);
+    decoderSource =  decoderSource.replace('%%NamedEntityParserCodeQuirk%%', namedEntityParserCodeQuirk);
+    return decoderSource;
 }
-
-const { HTML4ENTITIESSorted, html4EntitiesSorted, html5EntitiesSorted } =
-    require('./entities-list');
 
 const decoderSource =
     '/* THIS IS GENERATED SOURCE. DO NOT EDIT */\n\n' +
-    'var decodeHTML4Entities = ' +
-    buildDecoderOptionalSemiColon(html4EntitiesSorted, HTML4ENTITIESSorted) + '\n\n' +
-    'var decodeHTML5Entities = ' +
-    buildDecoderOptionalSemiColon(html5EntitiesSorted, HTML4ENTITIESSorted) + '\n\n' +
-    'var decodeHTML4EntitiesStrict = ' +
-    buildStrictDecoder(html4EntitiesSorted, HTML4ENTITIESSorted) + '\n\n' +
-    'var decodeHTML5EntitiesStrict = ' +
-    buildStrictDecoder(html5EntitiesSorted, HTML4ENTITIESSorted) + '\n\n' +
-    'module.exports = {decodeHTML5Entities, decodeHTML4Entities, decodeHTML5EntitiesStrict, decodeHTML4EntitiesStrict}';
+    'var decodeHTML4Entities = ' + buildDecoder(html4EntitiesSorted) + '\n\n' +
+    'var decodeHTML5Entities = ' + buildDecoder(html5EntitiesSorted) + '\n\n' +
+    'module.exports = {decodeHTML5Entities, decodeHTML4Entities}';
 
 fs.writeFileSync('../lib/named-entities-decoder.js', decoderSource);

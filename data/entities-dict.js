@@ -2265,10 +2265,126 @@ function toEscapedStr(charCode) {
     return toEscapedStr(H) + toEscapedStr(L);
 }
 
-const entitiesMap = {};
+const entitiesDict = {};
 Object.keys(entities).forEach( (k) => {
-    entitiesMap[k] =
+    entitiesDict[k] =
       entities[k].codepoints.reduce( (res, el) => { return res + toEscapedStr(el)}, '')
 })
 
-module.exports = entitiesMap;
+const html3EntitiesList = [
+    // The following is extracted from HTML 3.2 standard
+    // https://www.w3.org/TR/2018/SPSD-html32-20180315/
+    "AElig","Aacute","Acirc","Agrave","Aring","Atilde","Auml","Ccedil",
+    "ETH","Eacute","Ecirc","Egrave","Euml","Iacute","Icirc","Igrave","Iuml",
+    "Ntilde","Oacute","Ocirc","Ograve","Oslash","Otilde","Ouml","THORN",
+    "Uacute","Ucirc","Ugrave","Uuml","Yacute","aacute","acirc","acute",
+    "aelig","agrave","aring","atilde","auml","brvbar","ccedil","cedil",
+    "cent","copy","curren","deg","divide","eacute","ecirc","egrave","eth",
+    "euml","frac12","frac14","frac34","iacute","icirc","iexcl","igrave",
+    "iquest","iuml","laquo","macr","micro","middot","nbsp","not","ntilde",
+    "oacute","ocirc","ograve","ordf","ordm","oslash","otilde","ouml","para",
+    "plusmn","pound","raquo","reg","sect","shy","sup1","sup2","sup3","szlig",
+    "thorn","times","uacute","ucirc","ugrave","uml","uuml","yacute","yen",
+    "yuml",
+    // Special cases
+    "lt", "gt", "amp", "LT", "GT", "AMP",
+    // Not part of HTML 3.2 but part of HTML 2.0 (weird)
+    // https://www.w3.org/MarkUp/html-spec/html-spec_9.html#SEC9.7
+    "quot", "QUOT"
+];
+
+const html4EntitiesList = [
+    // The following is extracted from HTML 4.0 standard
+    // https://www.w3.org/TR/html4/sgml/entities.html
+    "Aacute","aacute","acirc","Acirc","acute","aelig","AElig",
+    "agrave","Agrave","alefsym","Alpha","alpha","amp","and","ang",
+    "Aring","aring","asymp","Atilde","atilde","Auml","auml",
+    "bdquo","beta","Beta","brvbar","bull",
+    "cap","Ccedil","ccedil","cedil","cent","chi","Chi","circ",
+    "clubs","cong","copy","crarr","cup","curren",
+    "dagger","Dagger","dArr","darr","deg","Delta","delta","diams","divide",
+    "eacute","Eacute","ecirc","Ecirc","egrave","Egrave","empty","emsp","ensp",
+    "Epsilon","epsilon","equiv","Eta","eta","eth","ETH","Euml","euml",
+    "euro","exist","fnof","forall","frac12","frac14","frac34","frasl",
+    "gamma","Gamma","ge","gt","hArr","harr","hearts","hellip",
+    "iacute","Iacute","icirc","Icirc","iexcl","igrave","Igrave",
+    "image","infin","int","iota","Iota","iquest","isin","Iuml","iuml",
+    "kappa","Kappa",
+    "Lambda","lambda","lang","laquo","larr","lArr","lceil","ldquo",
+    "le","lfloor","lowast","loz","lrm","lsaquo","lsquo","lt",
+    "macr","mdash","micro","middot","minus","mu","Mu",
+    "nabla","nbsp","ndash","ne","ni","not","notin","nsub",
+    "Ntilde","ntilde","nu","Nu","oacute","Oacute","ocirc","Ocirc",
+    "OElig","oelig","ograve","Ograve","oline","Omega","omega","omicron",
+    "Omicron","oplus","or","ordf","ordm","oslash","Oslash","Otilde",
+    "otilde","otimes","Ouml","ouml",
+    "para","part","permil","perp","Phi","phi","pi","Pi","piv","plusmn",
+    "pound","prime","Prime","prod","prop","psi","Psi","quot","radic",
+    "rang","raquo","rArr","rarr","rceil","rdquo","real","reg","rfloor",
+    "rho","Rho","rlm","rsaquo","rsquo","sbquo","scaron","Scaron","sdot",
+    "sect","shy","Sigma","sigma","sigmaf","sim","spades","sub","sube",
+    "sum","sup","sup1","sup2","sup3","supe","szlig",
+    "Tau","tau","there4","Theta","theta","thetasym","thinsp","thorn",
+    "THORN","tilde","times","trade","Uacute","uacute","uArr","uarr","ucirc",
+    "Ucirc","ugrave","Ugrave","uml","upsih","Upsilon","upsilon",
+    "uuml","Uuml","weierp",
+    "Xi","xi","Yacute","yacute","yen","yuml","Yuml",
+    "zeta","Zeta","zwj","zwnj",
+    // apos is not part of HTML 4 but is part of XHTML 1.0 and is generally
+    // considered part of HTML 4
+    // note IE 5~9 also accepts "&apos" (without ";")
+    "apos"
+]
+
+// Html3 entities sorted by length
+const legacyEntitiesSorted = {};
+html3EntitiesList.forEach( (el) => {
+    const named = '"' + el + '"';
+    const decoded = '"' + entitiesDict['&' + el + ';'] + '"';
+    let len = el.length;
+    if (legacyEntitiesSorted[len]) {
+        legacyEntitiesSorted[len].named.push(named);
+        legacyEntitiesSorted[len].decoded.push(decoded);
+    } else {
+        legacyEntitiesSorted[len] = {named: [named], decoded: [decoded] };
+    }
+});
+
+// Html4 entities sorted by length
+const html4EntitiesSorted = {};
+html4EntitiesList.forEach( (el) => {
+    const named = '"' + el + '"';
+    const decoded = '"' + entitiesDict['&' + el + ';'] + '"';
+    let len = el.length;
+    if (html4EntitiesSorted[len]) {
+        html4EntitiesSorted[len].named.push(named);
+        html4EntitiesSorted[len].decoded.push(decoded);
+    } else {
+        html4EntitiesSorted[len] = {named: [named], decoded: [decoded] };
+    }
+});
+
+// Html5 entities (sans legacy entites) sorted by length
+const html5EntitiesSorted = {};
+Object.keys(entitiesDict).forEach( (el) => {
+    if ((el.charAt(el.length - 1) == ';') &&
+        (el !== '&GT;') && (el !== '&AMP;') &&
+        (el !== '&LT;') && (el !== '&QUOT;')
+    ) {
+        const named = '"' + el.substring(1, el.length - 1) + '"';
+        const decoded = '"' + entitiesDict[el] + '"';
+        let len = el.length;
+        if (html5EntitiesSorted[len]) {
+            html5EntitiesSorted[len].named.push(named);
+            html5EntitiesSorted[len].decoded.push(decoded);
+        } else {
+            html5EntitiesSorted[len] = {named: [named], decoded: [decoded] };
+        }
+    }
+})
+
+module.exports = {
+    legacyEntitiesSorted,
+    html4EntitiesSorted,
+    html5EntitiesSorted
+}
