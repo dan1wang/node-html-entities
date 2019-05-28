@@ -17,6 +17,7 @@ function buildDecoder(entities) {
         if (seg.charAt(0) == '#') {
             var cc = seg.charCodeAt(1);
             var code = 0;
+            var isEmpty = true;
             i = 1;
             if ((cc === ${'x'.charCodeAt(0)}) || (cc === ${'X'.charCodeAt(0)})) {
                 do {
@@ -31,18 +32,34 @@ function buildDecoder(entities) {
                         break;
                     }
                 } while (1)
+                isEmpty = i > 3;
             } else {
                 while (1) {
                     if ((cc > ${'0'.charCodeAt(0)-1}) && (cc < ${'9'.charCodeAt(0)+1})) {
-                        code = code * 16 + cc - ${'0'.charCodeAt(0)};
+                        code = code * 10 + cc - ${'0'.charCodeAt(0)};
                         cc = seg.charCodeAt(++i);
                     } else {
                         break;
                     }
                 }
+                isEmpty = i > 2;
             }
-            output += String.fromCharCode(code) + seg.substring(i);
-            continue;
+            if (isEmpty) {
+                output += '&' + seg;
+                continue;
+            }
+            if (cc == ${';'.charCodeAt(0)}) {
+                i++;
+            } else if (strict) {
+                output += '&' + seg;
+                continue;
+            }
+            if ( (code > ${0x10FFFF}) || (code == 0)) {
+
+            } else {
+                output += String.fromCharCode(code) + seg.substring(i);
+                continue;
+            }
             // if (!(isNaN(code) || code < -32768 || code > 65535)) {
             //     chr = String.fromCharCode(code);
             // }
