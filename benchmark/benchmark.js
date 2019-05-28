@@ -26,13 +26,16 @@ benchmark('Encode test', {
 
 });
 
-var textToDecode = '&#60;This&#62; is a test encode benchmark. Should contain &lt;&gt;&amp;&apos; and &quot. And some unicode symbols: &copy;, &#8710;, &mdash;. Good luck.'
+// var textToDecode = '&#60;This&#62; is a test encode benchmark. Should contain &lt;&gt;&amp;&apos; and &quot. And some unicode symbols: &copy;, &#8710;, &mdash;. Good luck.'
+var textToDecode = '&#60;This&#62; is a test encode benchmark. Should contain &lt;&gt;&amp;&apos; and &quot. And some unicode symbols: &copy;,a'
 
 var newDecoder = require('../lib/named-entities-decoder')
 
 benchmark('Decode test', {
 
 });
+
+function NOP(s) { console.log(s); }
 
 benchmark('Decode test', {
     'XmlEntities.decode': function () { xmlEntities.decode(textToDecode); },
@@ -43,17 +46,17 @@ benchmark('Decode test', {
     'entities.decodeXML': function () { entities.decodeXML(textToDecode); },
     'entities.decodeHTML4': function () { entities.decodeHTML4(textToDecode); },
     'entities.decodeHTML5': function () { entities.decodeHTML5(textToDecode); },
-    'newDecoder.decodeHTML4Entities': function () { newDecoder.decodeHTML4Entities(textToDecode); },
-    'newDecoder.decodeHTML5Entities': function () { newDecoder.decodeHTML5Entities(textToDecode); },
-    'newDecoder.decodeHTML4EntitiesStrict': function () { newDecoder.decodeHTML4Entities(textToDecode, true); },
-    'newDecoder.decodeHTML5EntitiesStrict': function () { newDecoder.decodeHTML5Entities(textToDecode, true); }
+    // 'newDecoder.decodeHTML4Entities': function () { newDecoder.decodeHTML4Entities(textToDecode, false, NOP); },
+    // 'newDecoder.decodeHTML5Entities': function () { newDecoder.decodeHTML5Entities(textToDecode, false, NOP); },
+    // 'newDecoder.decodeHTML4EntitiesStrict': function () { newDecoder.decodeHTML4Entities(textToDecode, true, NOP); },
+    // 'newDecoder.decodeHTML5EntitiesStrict': function () { newDecoder.decodeHTML5Entities(textToDecode, true, NOP); }
 });
-/*
-console.log(newDecoder.decodeHTML4Entities(textToDecode, true));
-console.log(newDecoder.decodeHTML5Entities(textToDecode, true));
-console.log(newDecoder.decodeHTML4Entities(textToDecode, false));
-console.log(newDecoder.decodeHTML5Entities(textToDecode, false));
-*/
+
+console.log(newDecoder.decodeHTML4Entities(textToDecode, true, NOP));
+// console.log(newDecoder.decodeHTML5Entities(textToDecode, true, NOP));
+// console.log(newDecoder.decodeHTML4Entities(textToDecode, false, NOP));
+// console.log(newDecoder.decodeHTML5Entities(textToDecode, false, NOP));
+
 var littleTextToDecode = '&lt;';
 
 benchmark('Decode little text test', {

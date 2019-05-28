@@ -1,25 +1,89 @@
-const fs = require('fs');
+/*
+ * Tool for building code for decoding named and numeric character references
+ *
+ * Code according to rule specified by
+ * https://html.spec.whatwg.org/multipage/parsing.html#character-reference-state
+ */
 
+/*************************** Code overview ***************************/
+/*
+function(input, strict) {
+    var segments = input.split('&');
+    var output = '';
+    for (var i=1; i<segments.length; i++) {
+        seg = segments[i];
+        if (seg.charAt(0) == '#') {
+            // decode numeric char reference
+        } else {
+            // decode named char reference
+        }
+        output += '&' + seg; // fall back
+    }
+    return output;
+}
+*/
+
+const fs = require('fs');
 const { legacyEntitiesSorted, html4EntitiesSorted, html5EntitiesSorted } =
     require('./entities-dict');
 
-function buildDecoder(entities) {
-    let decoderSource  =
-`function(input, strict) {
-    if (!input || !input.length) return '';
-    var segments = input.split('&');
-    if (segments.length == 1) return input;
-    var output = '';
-    var i = 0;
-    var j = 0;
-    for (i=1; i<segments.length; i++) {
-        var seg = segments[i];
-        if (seg.charAt(0) == '#') {
+const ERRORS = {
+    NULL_CHAR_REF:         { CODE: 0, MSG: "null character reference" },
+    OUT_OF_RANGE_CHAR_REF: { CODE: 1, MSG: "character reference outside unicode range" },
+    SURROGATE_CHAR_REF:    { CODE: 2, MSG: "surrogate character reference" },
+    NON_CHARACTER:         { CODE: 3, MSG: "non-character character reference" },
+    CTRL_CHARACTER:        { CODE: 4, MSG: "control character character reference" },
+    MISSING_DIGIT:     { CODE: 7, MSG: "missing digit in numeric character reference" },
+    MISSING_SEMICOLON: { CODE: 9, MSG: "missing semicolon after character reference" },
+}
+
+function buildNumericCharRefDecoder() {
+    // https://infra.spec.whatwg.org/#noncharacter
+    const NON_CHARACTER = [
+        /* 0xFDD0-0xFDEF (range comparision used) */
+        0xFFFF, 0x1FFFE, 0x1FFFF, 0x2FFFE, 0x2FFFF, 0x3FFFE, 0x3FFFF, 0x4FFFE,
+        0x4FFFF, 0x5FFFE, 0x5FFFF, 0x6FFFE, 0x6FFFF, 0x7FFFE, 0x7FFFF, 0x8FFFE,
+        0x8FFFF, 0x9FFFE, 0x9FFFF, 0xAFFFE, 0xAFFFF, 0xBFFFE, 0xBFFFF, 0xCFFFE,
+        0xCFFFF, 0xDFFFE, 0xDFFFF, 0xEFFFE, 0xEFFFF, 0xFFFFE, 0xFFFFF, 0x10FFFE,
+        0x10FFFF
+    ];
+
+    // https://html.spec.whatwg.org/multipage/parsing.html#numeric-character-reference-end-state
+    const C1_REPLACE = [
+        { from: 0x80, to: 0x20AC },
+        { from: 0x82, to: 0x201A },
+        { from: 0x83, to: 0x0192 },
+        { from: 0x84, to: 0x201E },
+        { from: 0x85, to: 0x2026 },
+        { from: 0x86, to: 0x2020 },
+        { from: 0x87, to: 0x2021 },
+        { from: 0x88, to: 0x02C6 },
+        { from: 0x89, to: 0x2030 },
+        { from: 0x8A, to: 0x0160 },
+        { from: 0x8B, to: 0x2039 },
+        { from: 0x8C, to: 0x0152 },
+        { from: 0x8E, to: 0x017D },
+        { from: 0x91, to: 0x2018 },
+        { from: 0x92, to: 0x2019 },
+        { from: 0x93, to: 0x201C },
+        { from: 0x94, to: 0x201D },
+        { from: 0x95, to: 0x2022 },
+        { from: 0x96, to: 0x2013 },
+        { from: 0x97, to: 0x2014 },
+        { from: 0x98, to: 0x02DC },
+        { from: 0x99, to: 0x2122 },
+        { from: 0x9A, to: 0x0161 },
+        { from: 0x9B, to: 0x203A },
+        { from: 0x9C, to: 0x0153 },
+        { from: 0x9E, to: 0x017E },
+        { from: 0x9F, to: 0x0178 }
+    ]
+    return `
             var cc = seg.charCodeAt(1);
-            var code = 0;
-            var isEmpty = true;
+            var isEmpty;
             i = 1;
-            if ((cc === ${'x'.charCodeAt(0)}) || (cc === ${'X'.charCodeAt(0)})) {
+            var code = 0;
+            if ((cc == ${'x'.charCodeAt(0)}) || (cc == ${'X'.charCodeAt(0)})) {
                 do {
                     cc = seg.charCodeAt(++i);
                     if ((cc > ${'0'.charCodeAt(0)-1}) && (cc < ${'9'.charCodeAt(0)+1})) {
@@ -32,7 +96,7 @@ function buildDecoder(entities) {
                         break;
                     }
                 } while (1)
-                isEmpty = i > 3;
+                isEmpty = i <= 2;
             } else {
                 while (1) {
                     if ((cc > ${'0'.charCodeAt(0)-1}) && (cc < ${'9'.charCodeAt(0)+1})) {
@@ -42,27 +106,61 @@ function buildDecoder(entities) {
                         break;
                     }
                 }
-                isEmpty = i > 2;
+                isEmpty = i < 1;
             }
             if (isEmpty) {
+                parseError("${ERRORS.MISSING_DIGIT.MSG}",${ERRORS.MISSING_DIGIT.CODE});
                 output += '&' + seg;
                 continue;
             }
             if (cc == ${';'.charCodeAt(0)}) {
                 i++;
             } else if (strict) {
+                parseError("${ERRORS.MISSING_SEMICOLON.MSG}",${ERRORS.MISSING_SEMICOLON.CODE});
                 output += '&' + seg;
                 continue;
             }
-            if ( (code > ${0x10FFFF}) || (code == 0)) {
-
-            } else {
-                output += String.fromCharCode(code) + seg.substring(i);
-                continue;
+            if ( (code > ${0x10FFFF}) ) {
+                parseError("${ERRORS.OUT_OF_RANGE_CHAR_REF.MSG}",${ERRORS.OUT_OF_RANGE_CHAR_REF.CODE});
+                output += '\\uFFFD' + seg.substring(i);
+            } else if (code == 0) {
+                parseError("${ERRORS.NULL_CHAR_REF.MSG}",${ERRORS.NULL_CHAR_REF.CODE});
+                output += '\\uFFFD' + seg.substring(i);
+            } else if ( (code > ${0xD800-1}) && (code < ${0xDFFF+1}) ) {
+                parseError("${ERRORS.SURROGATE_CHAR_REF.MSG}",${ERRORS.SURROGATE_CHAR_REF.CODE});
+                output += '\\uFFFD' + seg.substring(i);
+            } else {` + /* https://infra.spec.whatwg.org/#c0-control */ `
+                if ( ((code > ${0xFDD0-1}) && (code < ${0xFDEF+1})) ||
+                      ([${NON_CHARACTER.join(',')}].indexOf(code) >= 0) ) {
+                    parseError("${ERRORS.NON_CHARACTER.MSG}",${ERRORS.NON_CHARACTER.CODE});
+                } else if ( (code == ${0x0D}) || (code < ${0x001F+1}) ) {
+                    parseError("${ERRORS.CTRL_CHARACTER.MSG}",${ERRORS.CTRL_CHARACTER.CODE});
+                } else if ( (code > ${0x007F-1}) || (code < ${0x009F+1}) ) {
+                    parseError("${ERRORS.CTRL_CHARACTER.MSG}",${ERRORS.CTRL_CHARACTER.CODE});
+                    var k = [${C1_REPLACE.map(el => el.from).join(',')}].indexOf(code);
+                    if (k >= 0) {
+                        code = [${C1_REPLACE.map(el => el.to).join(',')}][k];
+                    }
+                }
+                output += String.fromCharCode(code) + seg.substring(j);
             }
-            // if (!(isNaN(code) || code < -32768 || code > 65535)) {
-            //     chr = String.fromCharCode(code);
-            // }
+            continue;`;
+}
+
+
+function buildDecoder(entities) {
+    let decoderSource  =
+`function(input, strict, parseError) {
+    if (!input || !input.length) return '';
+    var segments = input.split('&');
+    if (segments.length == 1) return input;
+    var output = segments[0];
+    var j = 0;
+    for (var i=1; i<segments.length; i++) {
+        var seg = segments[i];
+        console.log(seg);
+        if (seg.charAt(0) == '#') {` +
+           `${buildNumericCharRefDecoder()}
         } else {
             var candidateLen = seg.indexOf(';');
             var candidateStr = seg.substring(0, candidateLen)
@@ -178,6 +276,7 @@ function buildDecoder(entities) {
 
 const decoderSource =
     '/* THIS IS GENERATED SOURCE. DO NOT EDIT */\n\n' +
+    '/*eslint-disable no-constant-condition */\n\n' +
     'var decodeHTML4Entities = ' + buildDecoder(html4EntitiesSorted) + '\n\n' +
     'var decodeHTML5Entities = ' + buildDecoder(html5EntitiesSorted) + '\n\n' +
     'module.exports = {decodeHTML5Entities, decodeHTML4Entities}';
