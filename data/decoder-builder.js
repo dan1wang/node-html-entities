@@ -135,7 +135,7 @@ function buildNumericCharRefDecoder() {
                     parseError("${ERRORS.NON_CHARACTER.MSG}",${ERRORS.NON_CHARACTER.CODE});
                 } else if ( (code == ${0x0D}) || (code < ${0x001F+1}) ) {
                     parseError("${ERRORS.CTRL_CHARACTER.MSG}",${ERRORS.CTRL_CHARACTER.CODE});
-                } else if ( (code > ${0x007F-1}) || (code < ${0x009F+1}) ) {
+                } else if ( (code > ${0x007F-1}) && (code < ${0x009F+1}) ) {
                     parseError("${ERRORS.CTRL_CHARACTER.MSG}",${ERRORS.CTRL_CHARACTER.CODE});
                     var k = [${C1_REPLACE.map(el => el.from).join(',')}].indexOf(code);
                     if (k >= 0) {
@@ -158,7 +158,6 @@ function buildDecoder(entities) {
     var j = 0;
     for (var i=1; i<segments.length; i++) {
         var seg = segments[i];
-        console.log(seg);
         if (seg.charAt(0) == '#') {` +
            `${buildNumericCharRefDecoder()}
         } else {
