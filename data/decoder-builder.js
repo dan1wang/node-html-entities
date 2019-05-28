@@ -81,11 +81,11 @@ function buildNumericCharRefDecoder() {
     return `
             var cc = seg.charCodeAt(1);
             var isEmpty;
-            i = 1;
+            j = 1;
             var code = 0;
             if ((cc == ${'x'.charCodeAt(0)}) || (cc == ${'X'.charCodeAt(0)})) {
                 do {
-                    cc = seg.charCodeAt(++i);
+                    cc = seg.charCodeAt(++j);
                     if ((cc > ${'0'.charCodeAt(0)-1}) && (cc < ${'9'.charCodeAt(0)+1})) {
                         code = code * 16 + cc - ${'0'.charCodeAt(0)};
                     } else if ((cc > ${'a'.charCodeAt(0)-1}) && (cc < ${'f'.charCodeAt(0)+1})) {
@@ -96,17 +96,17 @@ function buildNumericCharRefDecoder() {
                         break;
                     }
                 } while (1)
-                isEmpty = i <= 2;
+                isEmpty = j <= 2;
             } else {
                 while (1) {
                     if ((cc > ${'0'.charCodeAt(0)-1}) && (cc < ${'9'.charCodeAt(0)+1})) {
                         code = code * 10 + cc - ${'0'.charCodeAt(0)};
-                        cc = seg.charCodeAt(++i);
+                        cc = seg.charCodeAt(++j);
                     } else {
                         break;
                     }
                 }
-                isEmpty = i < 1;
+                isEmpty = j < 1;
             }
             if (isEmpty) {
                 parseError("${ERRORS.MISSING_DIGIT.MSG}",${ERRORS.MISSING_DIGIT.CODE});
@@ -114,7 +114,7 @@ function buildNumericCharRefDecoder() {
                 continue;
             }
             if (cc == ${';'.charCodeAt(0)}) {
-                i++;
+                j++;
             } else if (strict) {
                 parseError("${ERRORS.MISSING_SEMICOLON.MSG}",${ERRORS.MISSING_SEMICOLON.CODE});
                 output += '&' + seg;
@@ -122,13 +122,13 @@ function buildNumericCharRefDecoder() {
             }
             if ( (code > ${0x10FFFF}) ) {
                 parseError("${ERRORS.OUT_OF_RANGE_CHAR_REF.MSG}",${ERRORS.OUT_OF_RANGE_CHAR_REF.CODE});
-                output += '\\uFFFD' + seg.substring(i);
+                output += '\\uFFFD' + seg.substring(j);
             } else if (code == 0) {
                 parseError("${ERRORS.NULL_CHAR_REF.MSG}",${ERRORS.NULL_CHAR_REF.CODE});
-                output += '\\uFFFD' + seg.substring(i);
+                output += '\\uFFFD' + seg.substring(j);
             } else if ( (code > ${0xD800-1}) && (code < ${0xDFFF+1}) ) {
                 parseError("${ERRORS.SURROGATE_CHAR_REF.MSG}",${ERRORS.SURROGATE_CHAR_REF.CODE});
-                output += '\\uFFFD' + seg.substring(i);
+                output += '\\uFFFD' + seg.substring(j);
             } else {` + /* https://infra.spec.whatwg.org/#c0-control */ `
                 if ( ((code > ${0xFDD0-1}) && (code < ${0xFDEF+1})) ||
                       ([${NON_CHARACTER.join(',')}].indexOf(code) >= 0) ) {
